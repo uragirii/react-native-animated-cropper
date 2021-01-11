@@ -1,5 +1,5 @@
 {
-  "name": "RNCropper",
+  "name": "rn-cropper",
   "version": "0.0.1",
   "private": true,
   "scripts": {
@@ -10,9 +10,12 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
+    "@gcanvas/core": "^1.0.0",
+    "@types/react-native-canvas": "^0.1.5",
     "react": "16.13.1",
     "react-native": "0.63.4",
     "react-native-canvas": "^0.1.37",
+    "react-native-gcanvas": "0.0.7-dev",
     "react-native-webview": "^11.0.2"
   },
   "devDependencies": {
