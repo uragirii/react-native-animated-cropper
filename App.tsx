@@ -1,156 +1,161 @@
 /* eslint-disable react-native/no-inline-styles */
-import React, {useEffect, useRef, useState} from 'react';
-import {
-  SafeAreaView,
-  StatusBar,
-  Dimensions,
-  View,
-  GestureResponderEvent,
-} from 'react-native';
-import Canvas from 'react-native-canvas';
-import ICanvas from './node_modules/@types/react-native-canvas';
-import {
-  BasicRect,
-  isInsideRectangle,
-  isOnEdge,
-  isOnVertex,
-  redrawCanvas,
-} from './utils';
+import React from 'react';
+import {View, StyleSheet} from 'react-native';
+import {PanGestureHandler} from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+} from 'react-native-reanimated';
 
-const WIDTH = Dimensions.get('window').width;
-const HEIGHT = Dimensions.get('window').height;
-
-export type MouseType =
-  | 'INSIDE'
-  | 'OUTSIDE'
-  | 'T'
-  | 'B'
-  | 'L'
-  | 'R'
-  | 'TR'
+export type Status =
   | 'TL'
+  | 'T'
+  | 'TR'
+  | 'R'
   | 'BR'
-  | 'BL';
+  | 'B'
+  | 'BL'
+  | 'L'
+  | 'INSIDE'
+  | 'NA';
+
+export type Context = {
+  offsetX: number;
+  offsetY: number;
+  status: Status;
+  width: number;
+  height: number;
+};
+
+const THRESHOLD = 30;
+const BOX_WIDTH = 100;
 
 const App = () => {
-  const canvas = useRef<ICanvas>();
-  const [mainRectangle, setMainRectangle] = useState<BasicRect>({
-    x0: WIDTH / 2,
-    x1: WIDTH / 2 + 50,
-    y0: HEIGHT / 2,
-    y1: HEIGHT / 2 + 50,
-  });
-  const [mouse, setMouse] = useState<MouseType>('OUTSIDE');
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [prevMouse, setPrevMouse] = useState<{x: number; y: number}>({
-    x: 0,
-    y: 0,
-  });
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const boxWidth = useSharedValue(BOX_WIDTH);
+  const boxHeight = useSharedValue(BOX_WIDTH);
 
-  useEffect(() => {
-    canvas.current.height = HEIGHT;
-    canvas.current.width = WIDTH;
-  }, []);
-
-  useEffect(() => {
-    const ctx = canvas.current.getContext('2d');
-
-    redrawCanvas(
-      ctx,
-      canvas.current.width,
-      canvas.current.height,
-      mainRectangle,
-    );
-  }, [mainRectangle]);
-
-  const mouseDown = (e: GestureResponderEvent) => {
-    const mouseX = e.nativeEvent.locationX;
-    const mouseY = e.nativeEvent.locationY;
-    if (isInsideRectangle(mouseX, mouseY, mainRectangle)) {
-      setMouse('INSIDE');
-    } else if (isInsideRectangle(mouseX, mouseY, mainRectangle)) {
-      setMouse('OUTSIDE');
-    } else if (isOnVertex(mouseX, mouseY, mainRectangle)) {
-      setMouse(isOnVertex(mouseX, mouseY, mainRectangle));
-    } else if (isOnEdge(mouseX, mouseY, mainRectangle)) {
-      setMouse(isOnEdge(mouseX, mouseY, mainRectangle));
-    }
-    setIsDrawing(true);
-    setPrevMouse({x: mouseX, y: mouseY});
-  };
-
-  const mouseMove = (e: GestureResponderEvent) => {
-    const ctx = canvas.current.getContext('2d');
-
-    if (mouse !== 'OUTSIDE' && isDrawing) {
-      const mouseX = e.nativeEvent.locationX;
-      const mouseY = e.nativeEvent.locationY;
-      const MAIN_RECTANGLE = {...mainRectangle};
-      const PREV_MOUSE = {...prevMouse};
-      if (mouse === 'T') {
-        MAIN_RECTANGLE.y0 += mouseY - PREV_MOUSE.y;
-        PREV_MOUSE.y = mouseY;
-      } else if (mouse === 'R') {
-        MAIN_RECTANGLE.x1 += mouseX - PREV_MOUSE.x;
-        PREV_MOUSE.x = mouseX;
-      } else if (mouse === 'B') {
-        MAIN_RECTANGLE.y1 += mouseY - PREV_MOUSE.y;
-        PREV_MOUSE.y = mouseY;
-      } else if (mouse === 'L') {
-        MAIN_RECTANGLE.x0 += mouseX - PREV_MOUSE.x;
-        PREV_MOUSE.x = mouseX;
-      } else if (mouse === 'TL') {
-        MAIN_RECTANGLE.x0 += mouseX - PREV_MOUSE.x;
-        PREV_MOUSE.x = mouseX;
-        MAIN_RECTANGLE.y0 += mouseY - PREV_MOUSE.y;
-        PREV_MOUSE.y = mouseY;
-      } else if (mouse === 'TR') {
-        MAIN_RECTANGLE.x1 += mouseX - PREV_MOUSE.x;
-        PREV_MOUSE.x = mouseX;
-        MAIN_RECTANGLE.y0 += mouseY - PREV_MOUSE.y;
-        PREV_MOUSE.y = mouseY;
-      } else if (mouse === 'BL') {
-        MAIN_RECTANGLE.y1 += mouseY - PREV_MOUSE.y;
-        PREV_MOUSE.y = mouseY;
-        MAIN_RECTANGLE.x0 += mouseX - PREV_MOUSE.x;
-        PREV_MOUSE.x = mouseX;
-      } else if (mouse === 'BR') {
-        MAIN_RECTANGLE.y1 += mouseY - PREV_MOUSE.y;
-        PREV_MOUSE.y = mouseY;
-        MAIN_RECTANGLE.x1 += mouseX - PREV_MOUSE.x;
-        PREV_MOUSE.x = mouseX;
-      } else if (mouse === 'INSIDE') {
-        MAIN_RECTANGLE.x0 += mouseX - PREV_MOUSE.x;
-        MAIN_RECTANGLE.y0 += mouseY - PREV_MOUSE.y;
-        MAIN_RECTANGLE.y1 += mouseY - PREV_MOUSE.y;
-        MAIN_RECTANGLE.x1 += mouseX - PREV_MOUSE.x;
-
-        PREV_MOUSE.y = mouseY;
-        PREV_MOUSE.x = mouseX;
+  const onGestureEvent = useAnimatedGestureHandler({
+    onStart: (event, ctx: Context) => {
+      ctx.offsetX = translateX.value;
+      ctx.offsetY = translateY.value;
+      ctx.width = boxWidth.value;
+      ctx.height = boxHeight.value;
+      // check here if touch is inside or outside
+      const currWidth = boxWidth.value;
+      const currHeight = boxHeight.value;
+      const threshold = THRESHOLD;
+      const {x, y} = event;
+      let status: Status;
+      if (x < threshold && y < threshold) {
+        status = 'TL';
+      } else if (y < threshold && x > threshold && x < currWidth - threshold) {
+        status = 'T';
+      } else if (y < threshold && x > currWidth - threshold) {
+        status = 'TR';
+      } else if (x < threshold && y > currHeight - threshold) {
+        status = 'BL';
+      } else if (
+        y > currHeight - threshold &&
+        x > threshold &&
+        x < currWidth - threshold
+      ) {
+        status = 'B';
+      } else if (x > currWidth - threshold && y > currHeight - threshold) {
+        status = 'BR';
+      } else if (x < threshold && y > threshold && y < currHeight - threshold) {
+        status = 'L';
+      } else if (
+        x > currWidth - threshold &&
+        y > threshold &&
+        y < currHeight - threshold
+      ) {
+        status = 'R';
+      } else if (
+        x > threshold &&
+        x < currWidth - threshold &&
+        y > threshold &&
+        y < currHeight - threshold
+      ) {
+        status = 'INSIDE';
+      } else {
+        status = 'NA';
       }
-      setMainRectangle(MAIN_RECTANGLE);
-      setPrevMouse(PREV_MOUSE);
-      redrawCanvas(
-        ctx,
-        canvas.current.width,
-        canvas.current.height,
-        MAIN_RECTANGLE,
-      );
-    }
-  };
+      ctx.status = status;
+      console.log(status, x, y);
+    },
+
+    onActive: (event, ctx: Context) => {
+      const {status, offsetX, offsetY, width, height} = ctx;
+      if (status.includes('R')) {
+        boxWidth.value = width + event.translationX;
+      }
+      if (status.includes('L')) {
+        boxWidth.value = width - event.translationX;
+        translateX.value = offsetX + event.translationX;
+      }
+      if (status.includes('B')) {
+        translateY.value = offsetY + event.translationY / 2;
+        boxHeight.value = height + event.translationY;
+      }
+      if (status.includes('T')) {
+        translateY.value = offsetY + event.translationY / 2;
+        boxHeight.value = height - event.translationY;
+      }
+      if (status === 'INSIDE') {
+        translateY.value = offsetY + event.translationY;
+        translateX.value = offsetX + event.translationX;
+      }
+    },
+  });
+
+  const animatedStyles = useAnimatedStyle(() => {
+    return {
+      width: boxWidth.value,
+      height: boxHeight.value,
+      margin: THRESHOLD,
+      padding: THRESHOLD,
+      position: 'relative',
+      backgroundColor: 'rgba(0,0,0,0.05)',
+      transform: [
+        {translateX: translateX.value},
+        {translateY: translateY.value},
+      ],
+    };
+  });
   return (
-    <>
-      <StatusBar barStyle="dark-content" />
-      <SafeAreaView style={{backgroundColor: 'black'}}>
-        <View
-          onTouchStart={mouseDown}
-          onTouchMove={mouseMove}
-          onTouchEnd={() => setIsDrawing(false)}>
-          <Canvas ref={canvas} style={{backgroundColor: 'white'}} />
-        </View>
-      </SafeAreaView>
-    </>
+    <View style={styles.container}>
+      <PanGestureHandler {...{onGestureEvent}}>
+        <Animated.View style={animatedStyles}>
+          <View style={{...styles.circle, top: -10, left: -10}} />
+          <View style={{...styles.circle, bottom: -10, left: -10}} />
+          <View style={{...styles.circle, bottom: -10, right: -10}} />
+          <View style={{...styles.circle, top: -10, right: -10}} />
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingTop: 10,
+    backgroundColor: '#ecf0f1',
+    padding: 8,
+  },
+  circle: {
+    width: 20,
+    height: 20,
+    borderColor: 'white',
+    borderWidth: 1,
+    borderRadius: 10,
+    position: 'absolute',
+    backgroundColor: '#5650F8',
+  },
+});
 
 export default App;
