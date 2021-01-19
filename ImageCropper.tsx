@@ -140,22 +140,45 @@ const ImageCropperComponent = forwardRef<ImageCropper, ImageCropperProps>(
       onActive: (event, ctx: Context) => {
         const {status, offsetX, offsetY, width, height} = ctx;
         if (status.includes('R')) {
-          boxWidth.value = width + event.translationX;
+          // If Width is changing, max possible is x + width
+          boxWidth.value =
+            width + event.translationX + offsetX > WIDTH
+              ? WIDTH - offsetX
+              : width + event.translationX;
         }
         if (status.includes('L')) {
           boxWidth.value = width - event.translationX;
-          translateX.value = offsetX + event.translationX;
+          translateX.value =
+            offsetX + event.translationX < 0 ? 0 : offsetX + event.translationX;
         }
         if (status.includes('B')) {
-          boxHeight.value = height + event.translationY;
+          boxHeight.value =
+            height + event.translationY + offsetY > imageHeight
+              ? imageHeight - offsetY
+              : height + event.translationY;
         }
         if (status.includes('T')) {
-          translateY.value = offsetY + event.translationY;
-          boxHeight.value = height - event.translationY;
+          // In this case transY would be negative
+          if (offsetY + event.translationY < 0) {
+            translateY.value = 0;
+          } else {
+            translateY.value = offsetY + event.translationY;
+            boxHeight.value = height - event.translationY;
+          }
         }
         if (status === 'INSIDE') {
-          translateY.value = offsetY + event.translationY;
-          translateX.value = offsetX + event.translationX;
+          translateY.value =
+            offsetY + event.translationY < 0
+              ? 0
+              : offsetY + event.translationY + height > imageHeight
+              ? imageHeight - height
+              : offsetY + event.translationY;
+          translateX.value =
+            offsetX + event.translationX < 0
+              ? 0
+              : offsetX + event.translationX + width > WIDTH
+              ? WIDTH - width
+              : offsetX + event.translationX;
         }
       },
     });
